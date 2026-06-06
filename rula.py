@@ -340,7 +340,7 @@ else:
 st.markdown("<div class='section-header'>【第二部分】📊 RULA快速上肢评估</div>", unsafe_allow_html=True)
 # 表单从A分项开始，不再包含二级大标题
 with st.form("rula_assessment_form"):
-    st.markdown("<div class='section-header'>一、A部分：上肢评分（手臂、前臂、手腕）</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'> A部分：上肢评分（手臂、前臂、手腕）</div>", unsafe_allow_html=True)
     # 原有所有滑块、勾选框代码完全保留不动
     
     col1, col2, col3 = st.columns(3)
