@@ -287,8 +287,8 @@ if uploaded_file:
         image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         processed_image, rula_angles, detection_message = process_image(image)
         
-        # 修复：限制图片最大宽度为800px，不再占满整个屏幕
-        st.image(cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB), caption="姿势识别结果", width=800)
+        # 修复：限制图片最大宽度为320px，不再占满整个屏幕
+        st.image(cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB), caption="姿势识别结果", width=320)
         
         # 关键修复：只有真正检测成功时才更新角度
         if detection_message.startswith("✅"):
