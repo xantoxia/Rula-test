@@ -1,24 +1,17 @@
-# ===================== 最开头：自动从国内可访问的 jsdelivr CDN 下载模型 =====================
+# ===================== 最开头：只使用你上传到GitHub的本地模型文件 =====================
 import os
-import urllib.request
 
-# 模型文件路径（缓存到 /tmp 目录）
-MODEL_PATH = '/tmp/pose_landmark_lite.tflite'
+# 模型文件已经和代码一起上传到GitHub仓库根目录
+MODEL_PATH = 'pose_landmark_lite.tflite'
 
-# 如果模型不存在，自动从 jsdelivr 下载（国内可稳定访问）
+# 检查模型文件是否存在
 if not os.path.exists(MODEL_PATH):
-    print("正在从 jsdelivr CDN 下载 Mediapipe 姿势识别模型...")
-    try:
-        # jsdelivr 上 @mediapipe/pose 包中的 lite 模型直接地址
-        urllib.request.urlretrieve(
-            'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.10.14/models/pose_landmark_lite.tflite',
-            MODEL_PATH
-        )
-        print("模型下载完成！")
-    except Exception as e:
-        print(f"模型下载失败: {str(e)}")
-        print("请手动下载模型文件并和代码一起上传到GitHub")
-        MODEL_PATH = None
+    raise FileNotFoundError(
+        "请确保 pose_landmark_lite.tflite 文件已经上传到GitHub仓库根目录\n"
+        "你已经上传的0.5.16版本模型完全可以正常使用"
+    )
+
+print("使用本地模型文件：", MODEL_PATH)
 
 # ===================== 正常导入 =====================
 import streamlit as st
@@ -100,9 +93,13 @@ if "detection_success" not in st.session_state:
     st.session_state.detection_success = False
 
 # ===================== Mediapipe 导入与配置 =====================
-mp_pose = mp.solutions.pose
-mp_drawing = mp.solutions.drawing_utils
-
+def load_pose_models():
+    mp_pose = mp.solutions.pose
+    mp_hands = mp.solutions.hands
+    pose = mp_pose.Pose(min_detection_confidence=0.8, min_tracking_confidence=0.8)
+    hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
+    return mp_pose, mp_hands, pose, hands
+    
 def get_coord(landmark, W, H):
     return [landmark.x * W, landmark.y * H, landmark.z]
 
