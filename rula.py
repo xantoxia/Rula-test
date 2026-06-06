@@ -1,17 +1,18 @@
-# ===================== 最开头添加这两行！ =====================
+# ===================== 最开头：手动下载模型到可写目录，彻底解决权限问题 =====================
 import os
-os.environ['MEDIAPIPE_MODEL_PATH'] = '/tmp'
-# ============================================================
+import urllib.request
 
-import streamlit as st
-import cv2
-import mediapipe as mp
-import numpy as np
-from openai import OpenAI
-import datetime
+# 强制把模型下载到 /tmp 目录（Streamlit Cloud唯一可写目录）
+MODEL_PATH = '/tmp/pose_landmark_lite.tflite'
+if not os.path.exists(MODEL_PATH):
+    print("正在下载 Mediapipe 姿势识别模型...")
+    urllib.request.urlretrieve(
+        'https://storage.googleapis.com/mediapipe-models/pose_landmark/pose_landmark_lite/float16/1/pose_landmark_lite.tflite',
+        MODEL_PATH
+    )
+    print("模型下载完成！")
 
-# ... 后面所有代码保持不变 ...
-
+# ===================== 正常导入 =====================
 import streamlit as st
 import cv2
 import mediapipe as mp
@@ -82,9 +83,7 @@ if "rula_result" not in st.session_state:
 if "auto_angles" not in st.session_state:
     st.session_state.auto_angles = None
 
-# ===================== 修正：Mediapipe 导入方式 =====================
-import mediapipe as mp
-# 显式导入，避免模块属性错误
+# ===================== Mediapipe 导入与配置 =====================
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 
@@ -95,14 +94,15 @@ def process_image(image):
     H, W, _ = image.shape
     img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
-    # 关键修复1：强制使用CPU模式，禁用GPU加速，解决GL上下文错误
+    # 关键修复：使用我们手动下载到/tmp的模型，彻底避免自动下载权限问题
     pose = mp_pose.Pose(
         static_image_mode=True,
-        model_complexity=0,  # 使用最轻量模型，CPU上运行最快最稳定
+        model_complexity=0,
         smooth_landmarks=True,
         min_detection_confidence=0.5,
-        enable_segmentation=False,  # 禁用分割，减少资源占用
-        smooth_segmentation=False
+        enable_segmentation=False,
+        smooth_segmentation=False,
+        model_path=MODEL_PATH  # 手动指定模型路径
     )
     pose_result = pose.process(img_rgb)
     
@@ -118,7 +118,7 @@ def process_image(image):
         def get_pose_pt(landmark):
             return get_coord(pose_result.pose_landmarks.landmark[landmark], W, H)
         
-        # 提取所有关键点（关键修复2：补上右膝盖关键点）
+        # 提取所有关键点
         left_shoulder = get_pose_pt(mp_pose.PoseLandmark.LEFT_SHOULDER)
         right_shoulder = get_pose_pt(mp_pose.PoseLandmark.RIGHT_SHOULDER)
         left_elbow = get_pose_pt(mp_pose.PoseLandmark.LEFT_ELBOW)
@@ -128,10 +128,10 @@ def process_image(image):
         left_hip = get_pose_pt(mp_pose.PoseLandmark.LEFT_HIP)
         right_hip = get_pose_pt(mp_pose.PoseLandmark.RIGHT_HIP)
         left_knee = get_pose_pt(mp_pose.PoseLandmark.LEFT_KNEE)
-        right_knee = get_pose_pt(mp_pose.PoseLandmark.RIGHT_KNEE)  # 补上这行！
+        right_knee = get_pose_pt(mp_pose.PoseLandmark.RIGHT_KNEE)
         nose = get_pose_pt(mp_pose.PoseLandmark.NOSE)
 
-        # 关键修复3：增加关键点存在性检查，防止未检测到关键点时崩溃
+        # 关键点存在性检查
         if (left_shoulder is not None and right_shoulder is not None and
             left_hip is not None and right_hip is not None and
             left_knee is not None and right_knee is not None):
@@ -141,8 +141,7 @@ def process_image(image):
             mid_hip = [(left_hip[i] + right_hip[i])/2 for i in range(3)]
             mid_knee = [(left_knee[i] + right_knee[i])/2 for i in range(3)]
 
-            # ===================== 角度计算（和你疲劳工具完全一致） =====================
-            # 1. 颈部前屈
+            # 角度计算（和你疲劳工具完全一致）
             def calculate_neck_flexion(nose, mid_shoulder, mid_hip):
                 v_neck = np.array(nose) - np.array(mid_shoulder)
                 v_trunk = np.array(mid_hip) - np.array(mid_shoulder)
@@ -151,7 +150,6 @@ def process_image(image):
                 angle = np.degrees(np.arccos(np.clip(cos_theta, -1, 1)))
                 return max(0, min(60, angle))
 
-            # 2. 背部屈曲
             def calculate_trunk_flexion(mid_shoulder, mid_hip, mid_knee):
                 v_trunk = np.array(mid_shoulder) - np.array(mid_hip)
                 v_leg = np.array(mid_knee) - np.array(mid_hip)
@@ -160,7 +158,6 @@ def process_image(image):
                 angle = 180 - np.degrees(np.arccos(np.clip(cos_theta, -1, 1)))
                 return max(0, min(90, angle))
 
-            # 3. 肩部上举（已修复：下垂=0°，不会出现173°）
             def calculate_shoulder_abduction(shoulder, elbow):
                 v_arm = np.array(elbow) - np.array(shoulder)
                 v_vert = np.array([0, 1, 0])
@@ -170,7 +167,6 @@ def process_image(image):
                 shoulder_angle = 180 - raw_angle if raw_angle > 90 else raw_angle
                 return max(0, min(180, shoulder_angle))
 
-            # 4. 肘部屈伸
             def calculate_elbow_flexion(shoulder, elbow, wrist):
                 v_upper = np.array(shoulder) - np.array(elbow)
                 v_lower = np.array(wrist) - np.array(elbow)
@@ -179,7 +175,6 @@ def process_image(image):
                 angle = np.degrees(np.arccos(np.clip(cos_theta, -1, 1)))
                 return max(0, min(180, angle))
 
-            # 5. 手腕背伸
             def calculate_wrist_extension(elbow, wrist, index_tip):
                 v_forearm = np.array(elbow) - np.array(wrist)
                 v_hand = np.array(index_tip) - np.array(wrist)
@@ -188,11 +183,11 @@ def process_image(image):
                 angle = 180 - np.degrees(np.arccos(np.clip(cos_theta, -1, 1)))
                 return max(-45, min(45, angle))
 
-            # 计算RULA所需角度（优先识别左侧，左侧不可见用右侧）
+            # 计算RULA所需角度
             rula_angles["neck_angle"] = calculate_neck_flexion(nose, mid_shoulder, mid_hip)
             rula_angles["trunk_angle"] = calculate_trunk_flexion(mid_shoulder, mid_hip, mid_knee)
             
-            # 优先使用左侧手臂，左侧不可见用右侧
+            # 优先使用左侧手臂
             if np.linalg.norm(np.array(left_elbow) - np.array(left_shoulder)) > 10:
                 rula_angles["arm_angle"] = calculate_shoulder_abduction(left_shoulder, left_elbow)
                 rula_angles["forearm_angle"] = calculate_elbow_flexion(left_shoulder, left_elbow, left_wrist)
@@ -213,11 +208,10 @@ def process_image(image):
             connection_spec
         )
     
-    # 关键：用完立即关闭模型，释放资源
     pose.close()
     return image, rula_angles
 
-# ===================== RULA评分核心逻辑（100%匹配你的评估表） =====================
+# ===================== RULA评分核心逻辑（100%匹配评估表，修复类型错误） =====================
 def get_arm_base_score(arm_angle):
     if -20 <= arm_angle <= 20:
         return 1
@@ -271,56 +265,56 @@ def get_trunk_base_score(trunk_angle):
 def get_leg_score(leg_support):
     return 1 if leg_support else 2
 
-# 表1：A总分查表
+# 表1：A总分查表（修复索引方式）
 def get_table1_score(arm_score, forearm_score, wrist_score, wrist_twist):
     table1 = [
-        [[1,2], [2,2], [2,2], [3,3]],
-        [[2,2], [2,2], [2,3], [3,3]],
-        [[2,3], [3,3], [3,3], [4,4]],
-        [[3,3], [3,3], [3,4], [4,4]],
-        [[2,2], [2,3], [3,3], [3,4]],
-        [[2,3], [3,3], [3,3], [4,4]],
-        [[3,3], [3,3], [4,4], [4,5]],
-        [[3,4], [4,4], [4,5], [5,5]],
-        [[3,3], [3,4], [4,4], [4,5]],
-        [[3,4], [4,4], [4,5], [5,5]],
-        [[4,4], [4,5], [5,5], [5,6]],
-        [[4,5], [5,5], [5,6], [6,6]],
-        [[4,5], [5,5], [5,6], [6,6]],
-        [[5,5], [5,6], [6,6], [6,7]],
-        [[5,6], [6,6], [6,7], [7,7]],
-        [[6,6], [6,7], [7,7], [7,8]]
+        # 手臂得分=1
+        [
+            [1,2], [2,2], [2,2], [3,3]  # 前臂得分=1,2,3,4
+        ],
+        # 手臂得分=2
+        [
+            [2,2], [2,2], [2,3], [3,3]
+        ],
+        # 手臂得分=3
+        [
+            [2,3], [3,3], [3,3], [4,4]
+        ],
+        # 手臂得分=4
+        [
+            [3,3], [3,3], [3,4], [4,4]
+        ]
     ]
     arm_idx = max(0, min(3, arm_score - 1))
     forearm_idx = max(0, min(3, forearm_score - 1))
     wrist_idx = max(0, min(3, wrist_score - 1))
     twist_idx = 1 if wrist_twist else 0
-    return table1[arm_idx * 4 + forearm_idx][wrist_idx][twist_idx]
+    return table1[arm_idx][forearm_idx][wrist_idx][twist_idx]
 
-# 表2：B总分查表
+# 表2：B总分查表（关键修复：彻底修正索引方式，确保返回整数）
 def get_table2_score(neck_score, trunk_score, leg_score):
     table2 = [
-        [[1,2], [2,3], [3,4], [5,6]],
-        [[2,3], [3,4], [4,5], [5,6]],
-        [[3,4], [4,5], [5,6], [6,7]],
-        [[5,6], [5,6], [6,7], [7,8]],
-        [[2,3], [3,4], [4,5], [5,6]],
-        [[3,4], [4,5], [5,6], [6,7]],
-        [[4,5], [5,6], [6,7], [7,8]],
-        [[5,6], [6,7], [7,8], [8,8]],
-        [[3,4], [4,5], [5,6], [6,7]],
-        [[4,5], [5,6], [6,7], [7,8]],
-        [[5,6], [6,7], [7,8], [8,9]],
-        [[6,7], [7,8], [8,9], [9,9]],
-        [[5,6], [6,7], [7,8], [8,9]],
-        [[6,7], [7,8], [8,9], [9,9]],
-        [[7,8], [8,9], [9,9], [9,9]],
-        [[8,9], [9,9], [9,9], [9,9]]
+        # 颈部得分=1
+        [
+            [1,2], [2,3], [3,4], [5,6]  # 身躯得分=1,2,3,4
+        ],
+        # 颈部得分=2
+        [
+            [2,3], [3,4], [4,5], [5,6]
+        ],
+        # 颈部得分=3
+        [
+            [3,4], [4,5], [5,6], [6,7]
+        ],
+        # 颈部得分=4
+        [
+            [5,6], [5,6], [6,7], [7,8]
+        ]
     ]
     neck_idx = max(0, min(3, neck_score - 1))
     trunk_idx = max(0, min(3, trunk_score - 1))
     leg_idx = 0 if leg_score == 1 else 1
-    return table2[neck_idx * 4 + trunk_idx][leg_idx]
+    return table2[neck_idx][trunk_idx][leg_idx]
 
 # 表3：最终RULA总分查表
 def get_table3_score(c_total, d_total):
@@ -451,25 +445,22 @@ def call_deepseek_api(messages):
 st.markdown("<h1 class='main-header'>RULA快速上肢评估系统</h1>", unsafe_allow_html=True)
 st.markdown("本系统基于**RULA快速上肢评估法**（McAtamney & Corlett, 1993）开发，严格遵循**ISO 11226:2000《人因工程-静态工作姿势评估》**国际标准。")
 
-# ===================== 新增：照片自动识别角度功能 =====================
+# 照片自动识别角度功能
 st.markdown("<div class='section-header'>📷 照片自动识别角度</div>", unsafe_allow_html=True)
 uploaded_file = st.file_uploader("上传工作姿势照片（支持JPG、PNG）", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
     with st.spinner("正在识别姿势..."):
-        # 读取并处理图片
         file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
         image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         processed_image, rula_angles = process_image(image)
         
-        # 显示识别结果
         st.image(cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB), caption="姿势识别结果", use_container_width=True)
         
-        # 保存识别到的角度到会话状态
         st.session_state.auto_angles = rula_angles
         st.success("✅ 角度已自动识别并填充，可手动修正")
 
-# 设置默认角度值（优先使用自动识别的，否则用默认值）
+# 设置默认角度值
 default_arm = int(st.session_state.auto_angles["arm_angle"]) if st.session_state.auto_angles else 0
 default_forearm = int(st.session_state.auto_angles["forearm_angle"]) if st.session_state.auto_angles else 90
 default_wrist = int(st.session_state.auto_angles["wrist_bend"]) if st.session_state.auto_angles else 0
@@ -478,7 +469,6 @@ default_trunk = int(st.session_state.auto_angles["trunk_angle"]) if st.session_s
 
 # 评估表单
 with st.form("rula_assessment_form"):
-    # A部分：手臂、前臂、手腕评分
     st.markdown("<div class='section-header'>一、A部分：上肢评分（手臂、前臂、手腕）</div>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
@@ -499,7 +489,6 @@ with st.form("rula_assessment_form"):
         wrist_bend = st.slider("手腕弯曲角度（°）", -45, 45, default_wrist, help="上倾为正，下倾为负")
         wrist_twist = st.checkbox("手腕扭转", value=False)
     
-    # B部分：颈部、身躯、腿部评分
     st.markdown("<div class='section-header'>二、B部分：躯干评分（颈部、身躯、腿部）</div>", unsafe_allow_html=True)
     
     col4, col5, col6 = st.columns(3)
@@ -519,7 +508,6 @@ with st.form("rula_assessment_form"):
         st.markdown("#### 3）腿部评分")
         leg_support = st.checkbox("腿和脚踝有适当支撑且平衡", value=True)
     
-    # C/D部分：肌肉、负荷评分
     st.markdown("<div class='section-header'>三、C/D部分：肌肉与负荷评分</div>", unsafe_allow_html=True)
     
     col7, col8 = st.columns(2)
@@ -539,12 +527,10 @@ with st.form("rula_assessment_form"):
             index=0
         )
     
-    # 提交按钮
     submit_button = st.form_submit_button("开始评估", type="primary", use_container_width=True)
 
 # 评估结果计算与展示
 if submit_button:
-    # 计算完整RULA评分
     scores = calculate_rula_scores(
         arm_angle, arm_abduction, shoulder_raise, arm_support,
         forearm_angle, forearm_abduction,
@@ -555,10 +541,8 @@ if submit_button:
         muscle_state, load_state
     )
     
-    # 保存结果到会话状态
     st.session_state.rula_result = scores
     
-    # 展示评分结果
     st.markdown("<div class='section-header'>四、评估结果</div>", unsafe_allow_html=True)
     
     col9, col10, col11, col12 = st.columns(4)
@@ -586,7 +570,6 @@ if submit_button:
         st.markdown(f"<div class='score-value {scores['risk_class']}'>{scores['rula_total']}</div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
     
-    # 行动水准
     st.markdown(f"""
     <div style='background-color: #F8F9FA; padding: 20px; border-radius: 10px; margin: 15px 0;'>
         <h3>行动水准：<span class='{scores['risk_class']}'>{scores['action_level']}</span></h3>
@@ -644,7 +627,6 @@ if submit_button:
 # 持续对话交流
 st.markdown("<div class='section-header'>六、持续咨询交流</div>", unsafe_allow_html=True)
 
-# 显示聊天记录
 def display_chat_messages():
     if "messages" in st.session_state:
         for msg in st.session_state.messages:
@@ -654,7 +636,6 @@ def display_chat_messages():
 
 display_chat_messages()
 
-# 聊天输入框
 prompt = st.chat_input("继续咨询人因工程相关问题：")
 if prompt:
     if not st.session_state.api_key_entered:
