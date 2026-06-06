@@ -394,7 +394,7 @@ with st.form("rula_assessment_form"):
         st.markdown("<small>⚠️ 默认腿部有支撑；若无支撑，请取消勾选</small>", unsafe_allow_html=True)
         leg_support = st.checkbox("腿和脚踝有适当支撑且平衡", value=True)
     
-    st.markdown("<div class='sub-header-green'> C、D部分：肌肉状态与负荷状态评分</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-header-green'> C、D部分：肌肉状态与力量、负荷状态评分</div>", unsafe_allow_html=True)
     
     col7, col8 = st.columns(2)
     with col7:
@@ -507,7 +507,7 @@ if submit_button:
             ]
             st.markdown(ai_response)
 # 自动生成AI分析
-st.markdown("<div class='section-header'>【第三部分】🤖 AI分析建议及咨询</div>", unsafe_allow_html=True)
+st.markdown("<div class='section-header'>【第三部分】🧠 AI分析建议及咨询</div>", unsafe_allow_html=True)
 
 def display_chat_messages():
     if "messages" in st.session_state:
