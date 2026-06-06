@@ -1,3 +1,6 @@
+libgl1-mesa-glx
+opencv-python>=4.8.0
+# ... 其他依赖不变
 streamlit>=1.30.0
 openai>=1.0.0
 opencv-python>=4.8.0
