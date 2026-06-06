@@ -415,8 +415,6 @@ if submit_button:
     
     st.session_state.rula_result = scores
     
-    st.markdown("<div class='section-header'>【第三部分】🤖 AI分析建议及咨询</div>", unsafe_allow_html=True)
-    
     col9, col10, col11, col12 = st.columns(4)
     with col9:
         st.markdown("<div class='score-box'>", unsafe_allow_html=True)
