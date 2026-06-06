@@ -355,6 +355,7 @@ with st.form("rula_assessment_form"):
     with col1:
         st.markdown("##### 1）手臂弯曲评分")
         arm_angle = st.slider("手臂弯曲角度（°）", -90, 180, default_arm, help="前倾为正，后倾为负")
+        st.markdown("<small>符合体态则勾选下方选项</small>", unsafe_allow_html=True)
         arm_abduction = st.checkbox("手臂外扩", value=False)
         shoulder_raise = st.checkbox("肩膀提高", value=False)
         arm_support = st.checkbox("手臂有支撑（减1分）", value=False)
@@ -362,11 +363,13 @@ with st.form("rula_assessment_form"):
     with col2:
         st.markdown("##### 2）前臂弯曲评分")
         forearm_angle = st.slider("前臂弯曲角度（°）", 0, 180, default_forearm, help="60-100°为中立位")
+        st.markdown("<small>符合体态则勾选下方选项</small>", unsafe_allow_html=True)
         forearm_abduction = st.checkbox("前臂外扩", value=False)
     
     with col3:
         st.markdown("##### 3）手腕评分")
         wrist_bend = st.slider("手腕弯曲角度（°）", -45, 45, default_wrist, help="上倾为正，下倾为负")
+        st.markdown("<small>符合体态则勾选下方选项</small>", unsafe_allow_html=True)
         wrist_twist = st.checkbox("手腕扭转", value=False)
     
     st.markdown("<div class='sub-header-green'> B部分：躯干评分（颈部、身躯、腿部）</div>", unsafe_allow_html=True)
@@ -375,17 +378,20 @@ with st.form("rula_assessment_form"):
     with col4:
         st.markdown("##### 1）颈部评分")
         neck_angle = st.slider("颈部弯曲角度（°）", -30, 60, default_neck, help="前倾为正，后仰为负")
+        st.markdown("<small>符合体态则勾选下方选项</small>", unsafe_allow_html=True)
         neck_twist = st.checkbox("颈部扭转", value=False)
         neck_bend = st.checkbox("颈部侧弯", value=False)
     
     with col5:
         st.markdown("##### 2）身躯评分")
         trunk_angle = st.slider("身躯弯曲角度（°）", 0, 90, default_trunk, help="前倾为正")
+        st.markdown("<small>符合体态则勾选下方选项</small>", unsafe_allow_html=True)
         trunk_twist = st.checkbox("身躯扭转", value=False)
         trunk_bend = st.checkbox("身躯侧弯", value=False)
     
     with col6:
         st.markdown("##### 3）腿部评分")
+        st.markdown("<small style='color:#d62728'>⚠️默认有支撑勾选，腿部悬空无支撑请取消勾选</small>", unsafe_allow_html=True)
         leg_support = st.checkbox("腿和脚踝有适当支撑且平衡", value=True)
     
     st.markdown("<div class='sub-header-green'> C、D部分：肌肉状态与负荷状态评分</div>", unsafe_allow_html=True)
