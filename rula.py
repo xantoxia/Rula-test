@@ -76,6 +76,12 @@ st.markdown("""
         color: #00B050;
         font-weight: bold;
     }
+    /* 限制图片最大宽度 */
+    .stImage img {
+        max-width: 800px !important;
+        margin: 0 auto !important;
+        display: block !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -90,6 +96,8 @@ if "rula_result" not in st.session_state:
     st.session_state.rula_result = None
 if "auto_angles" not in st.session_state:
     st.session_state.auto_angles = None
+if "detection_success" not in st.session_state:
+    st.session_state.detection_success = False
 
 # ===================== Mediapipe 导入与配置 =====================
 mp_pose = mp.solutions.pose
@@ -100,8 +108,7 @@ def get_coord(landmark, W, H):
 
 def process_image(image):
     if not MODEL_PATH:
-        st.error("模型文件加载失败，请检查网络连接或手动上传模型")
-        return image, {"arm_angle": 0, "forearm_angle": 90, "wrist_bend": 0, "neck_angle": 0, "trunk_angle": 0}
+        return image, None, "模型文件加载失败，请检查网络连接或手动上传模型"
     
     H, W, _ = image.shape
     img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -126,6 +133,7 @@ def process_image(image):
         "trunk_angle": 0
     }
     
+    detection_message = None
     if pose_result.pose_landmarks:
         def get_pose_pt(landmark):
             return get_coord(pose_result.pose_landmarks.landmark[landmark], W, H)
@@ -209,7 +217,14 @@ def process_image(image):
                 rula_angles["forearm_angle"] = calculate_elbow_flexion(right_shoulder, right_elbow, right_wrist)
                 rula_angles["wrist_bend"] = calculate_wrist_extension(right_elbow, right_wrist, right_wrist)
 
-        # 绘制骨架
+            detection_message = "✅ 角度已自动识别并填充，可手动修正"
+        else:
+            detection_message = "⚠️ 未能检测到完整的人体关键点，请确保照片中包含完整的上半身"
+    else:
+        detection_message = "❌ 未能检测到人体姿势，请上传清晰的工作姿势照片"
+
+    # 绘制骨架
+    if pose_result.pose_landmarks:
         drawing_spec = mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=2)
         connection_spec = mp_drawing.DrawingSpec(color=(255, 0, 0), thickness=2)
         mp_drawing.draw_landmarks(
@@ -221,7 +236,7 @@ def process_image(image):
         )
     
     pose.close()
-    return image, rula_angles
+    return image, rula_angles, detection_message
 
 # ===================== RULA评分核心逻辑（100%匹配评估表） =====================
 def get_arm_base_score(arm_angle):
@@ -441,19 +456,36 @@ if uploaded_file:
     with st.spinner("正在识别姿势..."):
         file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
         image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-        processed_image, rula_angles = process_image(image)
+        processed_image, rula_angles, detection_message = process_image(image)
         
-        st.image(cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB), caption="姿势识别结果", use_container_width=True)
+        # 修复：限制图片最大宽度为800px，不再占满整个屏幕
+        st.image(cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB), caption="姿势识别结果", width=800)
         
-        st.session_state.auto_angles = rula_angles
-        st.success("✅ 角度已自动识别并填充，可手动修正")
+        # 关键修复：只有真正检测成功时才更新角度
+        if detection_message.startswith("✅"):
+            st.session_state.auto_angles = rula_angles
+            st.session_state.detection_success = True
+            st.success(detection_message)
+        else:
+            st.session_state.detection_success = False
+            if detection_message.startswith("⚠️"):
+                st.warning(detection_message)
+            else:
+                st.error(detection_message)
 
-# 设置默认角度值
-default_arm = int(st.session_state.auto_angles["arm_angle"]) if st.session_state.auto_angles else 0
-default_forearm = int(st.session_state.auto_angles["forearm_angle"]) if st.session_state.auto_angles else 90
-default_wrist = int(st.session_state.auto_angles["wrist_bend"]) if st.session_state.auto_angles else 0
-default_neck = int(st.session_state.auto_angles["neck_angle"]) if st.session_state.auto_angles else 0
-default_trunk = int(st.session_state.auto_angles["trunk_angle"]) if st.session_state.auto_angles else 0
+# 关键修复：只有检测成功时才使用自动识别的角度，否则使用默认值
+if st.session_state.detection_success and st.session_state.auto_angles:
+    default_arm = int(st.session_state.auto_angles["arm_angle"])
+    default_forearm = int(st.session_state.auto_angles["forearm_angle"])
+    default_wrist = int(st.session_state.auto_angles["wrist_bend"])
+    default_neck = int(st.session_state.auto_angles["neck_angle"])
+    default_trunk = int(st.session_state.auto_angles["trunk_angle"])
+else:
+    default_arm = 0
+    default_forearm = 90
+    default_wrist = 0
+    default_neck = 0
+    default_trunk = 0
 
 # 评估表单
 with st.form("rula_assessment_form"):
@@ -515,7 +547,7 @@ with st.form("rula_assessment_form"):
             index=0
         )
     
-    submit_button = st.form_submit_button("开始评估", type="primary", use_container_width=True)
+    submit_button = st.form_submit_button("开始评估", type="primary", width='stretch')
 
 # 评估结果计算与展示
 if submit_button:
