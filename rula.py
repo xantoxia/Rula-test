@@ -336,10 +336,12 @@ else:
     default_neck = 0
     default_trunk = 0
 
-# 评估表单
+# ========== 标题挪到form外面，单独一行 ==========
+st.markdown("<div class='section-header'>【第二部分】📊 RULA快速上肢评估</div>", unsafe_allow_html=True)
+# 表单从A分项开始，不再包含二级大标题
 with st.form("rula_assessment_form"):
-    st.markdown("<div class='section-header'>【第二部分】📊 RULA 快速上肢评估</div>", unsafe_allow_html=True)
-    st.markdown("<div class='section-header'> A部分：上肢评分（手臂、前臂、手腕）</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'>一、A部分：上肢评分（手臂、前臂、手腕）</div>", unsafe_allow_html=True)
+    # 原有所有滑块、勾选框代码完全保留不动
     
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -413,7 +415,7 @@ if submit_button:
     
     st.session_state.rula_result = scores
     
-    st.markdown("<div class='section-header'>四、评估结果</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'>【第三部分】🤖 AI分析建议及咨询</div>", unsafe_allow_html=True)
     
     col9, col10, col11, col12 = st.columns(4)
     with col9:
