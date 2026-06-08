@@ -239,7 +239,7 @@ def process_image(image):
             default_angles.append("手腕")
 
         if default_angles:
-            detection_message = f"⚠️ 部分角度识别失败，已自动填充默认值，建议手动调整该值：{', '.join(default_angles)}"
+            detection_message = f"⚠️ 部分角度识别失败，已自动填充默认值，建议手动修正：{', '.join(default_angles)}"
 
         mp.solutions.drawing_utils.draw_landmarks(
             image, pose_result.pose_landmarks, mp_pose.POSE_CONNECTIONS
