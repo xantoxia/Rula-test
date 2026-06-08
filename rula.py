@@ -428,6 +428,8 @@ with st.form("rula_assessment_form"):
 # ===================== 第三部分：只显示历史记录（不会重复） =====================
 st.markdown("<div class='section-header'>【第三部分】💡 AI分析建议及咨询</div>", unsafe_allow_html=True)
 
+submit_button = st.form_submit_button("开始评估", type="primary", width='stretch')
+
 # ===================== 第一步：先处理所有逻辑（计算+AI生成），再渲染任何内容 =====================
 # 1. 处理评估计算
 if submit_button:
@@ -441,12 +443,14 @@ if submit_button:
         muscle_state, load_state
     )
     
-    st.session_state.rula_result = scores
-    st.session_state.last_scores = scores
-    st.session_state.need_gen_ai = True
+    # 确保calculate_rula_scores返回了有效字典
+    if scores is not None:
+        st.session_state.rula_result = scores
+        st.session_state.last_scores = scores
+        st.session_state.need_gen_ai = True
 
 # 2. 处理AI生成（单独判断，确保只执行一次）
-if st.session_state.need_gen_ai and "last_scores" in st.session_state:
+if st.session_state.need_gen_ai and "last_scores" in st.session_state and st.session_state.last_scores is not None:
     scores = st.session_state.last_scores
     
     with st.spinner("🧠 AI正在生成人因风险分析报告..."):
@@ -500,7 +504,7 @@ if st.session_state.need_gen_ai and "last_scores" in st.session_state:
 
 # ===================== 第二步：所有逻辑处理完，再渲染页面内容 =====================
 # 1. 渲染RULA评估结果卡片（只有点击按钮后才显示）
-if "rula_result" in st.session_state:
+if "rula_result" in st.session_state and st.session_state.rula_result is not None:
     scores = st.session_state.rula_result
     
     col9, col10, col11, col12 = st.columns(4)
@@ -535,9 +539,6 @@ if "rula_result" in st.session_state:
     </div>
     """, unsafe_allow_html=True)
 
-# 2. 渲染第三部分标题+历史记录（永远在最下面，逻辑处理完才渲染）
-st.markdown("<div class='section-header'>【第三部分】💡 AI分析建议及咨询</div>", unsafe_allow_html=True)
-
 if len(st.session_state.rula_history) == 0:
     st.info("暂无评估历史，填写数据后点击开始评估生成首份报告")
 else:
@@ -546,13 +547,6 @@ else:
         open_flag = True if idx == st.session_state.last_expand_idx else False
         with st.expander(f"第{idx+1}次评估｜RULA总分：{item['score']}", expanded=open_flag):
             st.markdown(item["content"])
-            
-def display_chat_messages():
-    if "messages" in st.session_state:
-        for msg in st.session_state.messages:
-            if msg["role"] != "system":
-                with st.chat_message(msg["role"]):
-                    st.markdown(msg["content"])
 
 display_chat_messages()
 
