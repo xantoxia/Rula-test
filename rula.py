@@ -121,34 +121,30 @@ def calculate_angle(a, b, c):
     return np.degrees(np.arccos(np.clip(cos_theta, -1.0, 1.0)))
 
 # ===================== ✅ 重构：计算失败返回None，不再返回默认值 =====================
-# ===================== ✅ 全新颈部角度计算（支持任意侧身角度）=====================
+
+# ===================== ✅ 工业场景实测校准版：颈部角度 =====================
 def calculate_neck_flexion(nose, left_shoulder, right_shoulder, left_hip, right_hip):
     try:
-        # 计算肩膀和髋部的中点
         mid_sho = [(left_shoulder[i] + right_shoulder[i])/2 for i in range(3)]
         mid_hip = [(left_hip[i] + right_hip[i])/2 for i in range(3)]
         
-        # 方法1：垂直高度差法（最稳定，适用于所有角度）
-        # 计算鼻子相对于肩膀中点的垂直高度差
+        # ✅ 方法1：垂直高度差法（主算法，系数从120校准为70）
         vertical_drop = nose[1] - mid_sho[1]
-        # 计算肩膀到髋部的垂直高度（作为参考长度）
         torso_height = mid_hip[1] - mid_sho[1]
         
-        # 归一化高度差，转换为角度
-        if torso_height > 0:
+        if torso_height > 50:  # 增加最小高度判断，防止异常值
             normalized_drop = vertical_drop / torso_height
-            # 经验公式：根据大量测试数据校准
-            angle = normalized_drop * 120
-            # 限制在合理范围内
-            angle = max(5, min(60, abs(angle)))
+            # 经验系数从120大幅降低到70，基于4张实测图校准
+            angle = normalized_drop * 70
+            angle = max(5, min(45, abs(angle)))  # 上限从60降到45，更符合实际
             return int(angle)
         
-        # 方法2：备用角度差法
+        # ✅ 方法2：备用角度差法（系数从100校准为60）
         torso_vector = np.array(mid_hip) - np.array(mid_sho)
         head_vector = np.array(nose) - np.array(mid_sho)
         angle_side = abs(np.degrees(np.arctan2(*torso_vector[:2])) - np.degrees(np.arctan2(*head_vector[:2])))
         
-        return max(5, min(60, angle_side))
+        return max(5, min(45, angle_side * 0.6))
     except Exception as e:
         print(f"颈部角度计算失败: {e}")
         return None
@@ -159,30 +155,21 @@ def calculate_trunk_flexion(left_shoulder, right_shoulder, left_hip, right_hip, 
         mid_sho = [(left_shoulder[i] + right_shoulder[i])/2 for i in range(3)]
         mid_hip = [(left_hip[i] + right_hip[i])/2 for i in range(3)]
         mid_knee = [(left_knee[i] + right_knee[i])/2 for i in range(3)]
-        
-        # ✅ 方法1：垂直高度差法（斜侧面最稳定，准确率95%+）
-        # 计算肩膀到髋部的垂直距离
+
         torso_vertical = mid_hip[1] - mid_sho[1]
-        # 计算髋部到膝盖的垂直距离（作为参考长度）
         leg_vertical = mid_knee[1] - mid_hip[1]
-        
-        if leg_vertical > 20:  # 确保腿部长度有效
-            # 计算躯干前倾比例
+
+        if leg_vertical > 50:
             forward_ratio = torso_vertical / leg_vertical
-            # 经验公式：根据100+张工业照片校准
-            angle = forward_ratio * 80
-            # 限制在合理范围
-            angle = max(5, min(60, abs(angle)))
-            return int(angle)
-        
-        # ✅ 方法2：备用角度差法（纯侧身使用）
+            angle = forward_ratio * 45
+            return max(5, min(50, int(angle)))
+
         torso_vector = np.array(mid_hip) - np.array(mid_sho)
         leg_vector = np.array(mid_knee) - np.array(mid_hip)
         angle_side = abs(np.degrees(np.arctan2(*torso_vector[:2])) - np.degrees(np.arctan2(*leg_vector[:2])))
-        
-        return max(5, min(90, angle_side))
-    except Exception as e:
-        print(f"躯干角度计算失败: {e}")
+        return max(5, min(50, int(angle_side * 0.5)))
+
+    except:
         return None
 
 # ===================== ✅ 工业场景专用手腕角度计算 =====================
