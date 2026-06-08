@@ -374,17 +374,11 @@ if uploaded_file:
         with col_angles:
             st.markdown("### 📊 识别角度结果")
             
-            # 生成角度结果表格（唯一的表格生成代码）
-            table_html = """
-            <table style="width:100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
-                <tr style="background-color: #0070C0; color: white;">
-                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">部位</th>
-                    <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">角度(°)</th>
-                    <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">状态</th>
-                </tr>
-            """
+            # ✅ 改用Streamlit原生DataFrame，彻底解决HTML渲染问题
+            import pandas as pd
             
-            # 定义部位名称和对应的角度键
+            # 构建数据
+            angle_data = []
             angle_items = [
                 ("手臂", "arm_angle"),
                 ("前臂", "forearm_angle"),
@@ -396,28 +390,29 @@ if uploaded_file:
             for name, key in angle_items:
                 angle = int(rula_angles[key])
                 if name in default_angles:
-                    # 默认角度用黄色背景高亮
-                    table_html += f"""
-                    <tr style="background-color: #fff3cd;">
-                        <td style="padding: 10px; border: 1px solid #ddd;">{name}</td>
-                        <td style="padding: 10px; text-align: center; border: 1px solid #ddd;">{angle}</td>
-                        <td style="padding: 10px; text-align: center; border: 1px solid #ddd;">⚠️ 默认值</td>
-                    </tr>
-                    """
+                    status = "⚠️ 默认值"
+                    style = "background-color: #fff3cd"
                 else:
-                    # 识别成功的角度用绿色文字
-                    table_html += f"""
-                    <tr>
-                        <td style="padding: 10px; border: 1px solid #ddd;">{name}</td>
-                        <td style="padding: 10px; text-align: center; border: 1px solid #ddd; color: #00B050; font-weight: bold;">{angle}</td>
-                        <td style="padding: 10px; text-align: center; border: 1px solid #ddd;">✅ 识别成功</td>
-                    </tr>
-                    """
+                    status = "✅ 识别成功"
+                    style = "color: #00B050; font-weight: bold"
+                
+                angle_data.append({
+                    "部位": name,
+                    "角度(°)": angle,
+                    "状态": status,
+                    "_style": style  # 用于后续样式设置
+                })
             
-            table_html += "</table>"
+            # 创建DataFrame
+            df = pd.DataFrame(angle_data)
             
-            # ✅ 唯一的表格渲染代码，必须加unsafe_allow_html=True
-            st.markdown(table_html, unsafe_allow_html=True)
+            # 定义样式函数
+            def highlight_rows(row):
+                return [row["_style"]] * len(row)
+            
+            # 应用样式并显示（隐藏索引列和样式列）
+            styled_df = df.style.apply(highlight_rows, axis=1).hide(axis="index").hide(["_style"], axis=1)
+            st.dataframe(styled_df, use_container_width=True, hide_index=True)
             
             # 显示识别状态提示
             if detection_message.startswith("✅"):
