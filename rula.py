@@ -553,10 +553,18 @@ if "rula_result" in st.session_state and st.session_state.rula_result is not Non
 if len(st.session_state.rula_history) == 0:
     st.info("暂无评估历史，填写数据后点击开始评估生成首份报告")
 else:
+    total_count = len(st.session_state.rula_history)  # 总评估次数
     for idx, item in enumerate(st.session_state.rula_history):
-        # 最新条目自动展开
+        # ✅ 正确序号：总次数 - 当前索引
+        # 索引0（最新）→ total_count → 第N次
+        # 索引1 → total_count-1 → 第N-1次
+        # ...
+        # 索引total_count-1（最旧）→ 1 → 第1次
+        actual_number = total_count - idx
+        
+        # 最新条目自动展开（last_expand_idx还是标记索引0，不用改）
         open_flag = True if idx == st.session_state.last_expand_idx else False
-        with st.expander(f"第{idx+1}次评估｜RULA总分：{item['score']}", expanded=open_flag):
+        with st.expander(f"第{actual_number}次评估｜RULA总分：{item['score']}", expanded=open_flag):
             # 显示AI分析报告
             st.markdown(item["content"])
             
@@ -569,8 +577,8 @@ else:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
             
-            # 该评估的独立聊天输入框
-            prompt = st.chat_input(f"针对第{idx+1}次评估继续咨询...", key=f"chat_input_{idx}")
+            # 该评估的独立聊天输入框（key也要改成用actual_number，避免重复）
+            prompt = st.chat_input(f"针对第{actual_number}次评估继续咨询...", key=f"chat_input_{actual_number}")
             if prompt:
                 if not st.session_state.api_key_entered:
                     st.error("请先完成评估，系统会自动初始化API")
