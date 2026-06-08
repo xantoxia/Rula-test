@@ -465,6 +465,14 @@ if st.session_state.need_gen_ai and "last_scores" in st.session_state and st.ses
         你是专业的人因工程专家，精通RULA快速上肢评估法和ISO 11226国际标准。
         以下是用户的RULA评估数据，请基于这些数据进行专业的风险分析，并给出可落地的改善建议。
 
+        【本次评估结果摘要】
+        - A总分（上肢）：{scores['a_total']}
+        - B总分（躯干）：{scores['b_total']}
+        - C/D总分：{scores['c_total']}/{scores['d_total']}
+        - 最终RULA总分：{scores['rula_total']}
+        - 行动水准：{scores['action_level']}
+        - 处理方案：{scores['action_plan']}
+
         评估数据：
         1. 上肢评分：
            - 手臂弯曲角度：{arm_angle}°，最终评分：{scores['arm_final']}
@@ -486,10 +494,11 @@ if st.session_state.need_gen_ai and "last_scores" in st.session_state and st.ses
            - 处理方案：{scores['action_plan']}
 
         要求：
-        1. 先说明整体的风险等级和核心问题
-        2. 分点分析每个身体部位的具体风险，结合RULA评估标准
-        3. 给出针对性的、可落地的改善建议，分为姿势调整、工作环境优化、休息方案三个部分
-        4. 语言专业、简洁、易懂
+        1. 报告开头先重复展示【本次评估结果摘要】，格式为加粗标题+分点列出
+        2. 再说明整体的风险等级和核心问题
+        3. 分点分析每个身体部位的具体风险，结合RULA评估标准
+        4. 给出针对性的、可落地的改善建议，分为姿势调整、工作环境优化、休息方案三个部分
+        5. 语言专业、简洁、易懂
         """
         
         ai_response = call_deepseek_api([
@@ -497,7 +506,7 @@ if st.session_state.need_gen_ai and "last_scores" in st.session_state and st.ses
             {"role": "user", "content": ai_prompt}
         ])
 
-        # ✅ 修复：把full_response改成ai_response
+        # 存入历史（新记录插最前面，自带空聊天历史）
         new_item = {
             "score": scores['rula_total'],
             "content": ai_response,
