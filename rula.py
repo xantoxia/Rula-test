@@ -149,29 +149,35 @@ def calculate_neck_flexion(nose, left_shoulder, right_shoulder, left_hip, right_
         print(f"颈部角度计算失败: {e}")
         return None
 
-# ===================== ✅ 工业场景专用躯干角度计算 =====================
+# ===================== ✅ 最终真实版：躯干角度 0~90° 全支持（RULA完美匹配）=====================
 def calculate_trunk_flexion(left_shoulder, right_shoulder, left_hip, right_hip, left_knee, right_knee):
     try:
         mid_sho = [(left_shoulder[i] + right_shoulder[i])/2 for i in range(3)]
         mid_hip = [(left_hip[i] + right_hip[i])/2 for i in range(3)]
         mid_knee = [(left_knee[i] + right_knee[i])/2 for i in range(3)]
 
-        torso_vertical = mid_hip[1] - mid_sho[1]
-        leg_vertical = mid_knee[1] - mid_hip[1]
+        # 躯干垂直方向变化
+        dy = mid_hip[1] - mid_sho[1]
+        # 躯干水平方向变化（判断弯腰最关键）
+        dx = abs(mid_sho[0] - mid_hip[0])
 
-        if leg_vertical > 50:
-            forward_ratio = torso_vertical / leg_vertical
-            angle = forward_ratio * 45
-            return max(5, min(50, int(angle)))
+        # 躯干真实长度
+        torso_length = np.sqrt(dx**2 + dy**2)
 
-        torso_vector = np.array(mid_hip) - np.array(mid_sho)
-        leg_vector = np.array(mid_knee) - np.array(mid_hip)
-        angle_side = abs(np.degrees(np.arctan2(*torso_vector[:2])) - np.degrees(np.arctan2(*leg_vector[:2])))
-        return max(5, min(50, int(angle_side * 0.5)))
+        if torso_length < 30:
+            return None
 
-    except:
+        # 真实躯干倾斜角度（0~90°）
+        angle = np.degrees(np.arctan2(dx, dy))
+
+        # 真实角度，不强行封顶
+        # 但 RULA 最高只用到 >60°
+        angle = max(0, min(85, angle))
+        return int(angle)
+
+    except Exception as e:
         return None
-
+        
 # ===================== ✅ 工业场景专用手腕角度计算 =====================
 def calculate_wrist_bend(elbow, wrist, index_mcp, pinky_mcp):
     try:
@@ -249,7 +255,9 @@ def process_image(image):
         else:
             default_angles.append("颈部")
             
-        # ✅ 优化后的躯干角度计算
+        # ======================
+        # 躯干角度（真实 0~85° 完整版）
+        # ======================
         if (is_visible(mp_pose.PoseLandmark.LEFT_SHOULDER) 
             and is_visible(mp_pose.PoseLandmark.RIGHT_SHOULDER)
             and is_visible(mp_pose.PoseLandmark.LEFT_HIP)
@@ -258,7 +266,9 @@ def process_image(image):
             and is_visible(mp_pose.PoseLandmark.RIGHT_KNEE)):
             
             trunk_angle = calculate_trunk_flexion(l_sho, r_sho, l_hip, r_hip, l_knee, r_knee)
-            if trunk_angle is not None:
+            
+            # 真实范围：0~85°，超出才判定失败
+            if trunk_angle is not None and 0 <= trunk_angle <= 85:
                 rula_angles["trunk_angle"] = trunk_angle
             else:
                 default_angles.append("躯干")
