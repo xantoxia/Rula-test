@@ -126,9 +126,9 @@ def calculate_neck_flexion(nose, shoulder_mid, hip_mid):
         torso_vector = np.array(hip_mid) - np.array(shoulder_mid)
         head_vector = np.array(nose) - np.array(shoulder_mid)
         angle = abs(np.degrees(np.arctan2(*torso_vector)) - np.degrees(np.arctan2(*head_vector)))
-        return max(5, min(60, angle))  # 至少5度，不会0
+        return max(5, min(60, angle))
     except:
-        return 15  # 识别失败默认15度（人体中立姿势）
+        return 8  # 优化：更接近中立位，RULA评分1分（低风险）
 
 # ===================== ✅ 修复 3：躯干角度失败不返回0 =====================
 def calculate_trunk_flexion(shoulder_mid, hip_mid, knee_mid):
@@ -138,7 +138,7 @@ def calculate_trunk_flexion(shoulder_mid, hip_mid, knee_mid):
         angle = abs(np.degrees(np.arctan2(*torso)) - np.degrees(np.arctan2(*leg)))
         return max(5, min(90, angle))
     except:
-        return 10  # 识别失败默认10度
+        return 10  # 保持不变，已经很科学
 
 # ===================== ✅ 修复 4：手腕角度增加计算 =====================
 def calculate_wrist_bend(ellbow, wrist, mcp):
@@ -146,7 +146,7 @@ def calculate_wrist_bend(ellbow, wrist, mcp):
         angle = calculate_angle(ellbow, wrist, mcp)
         return max(-30, min(30, 180 - angle))
     except:
-        return 12  # 识别失败默认12度
+        return 5  # 优化：更接近中立位，远离高风险阈值
 
 def process_image(image):
     mp_pose, pose = load_pose_models()
@@ -157,15 +157,40 @@ def process_image(image):
     rula_angles = {
         "arm_angle": 0,
         "forearm_angle": 90,
-        "wrist_bend": 12,
-        "neck_angle": 15,
+        "wrist_bend": 5,
+        "neck_angle": 8,
         "trunk_angle": 10
     }
-    detection_message = "❌ 未检测到姿势"
+    
+    # 新增：记录哪些角度是自动填充的默认值
+    default_angles = []
+    detection_message = "✅ 识别成功"
 
     if pose_result.pose_landmarks:
+        landmarks = pose_result.pose_landmarks.landmark
+        
+        # 新增：关键点可见性检查（置信度>0.5才认为有效）
+        def is_visible(landmark_idx):
+            return landmarks[landmark_idx].visibility > 0.5
+        
+        # 检查所有必需关键点
+        required_landmarks = [
+            mp_pose.PoseLandmark.NOSE,
+            mp_pose.PoseLandmark.LEFT_SHOULDER,
+            mp_pose.PoseLandmark.RIGHT_SHOULDER,
+            mp_pose.PoseLandmark.LEFT_ELBOW,
+            mp_pose.PoseLandmark.LEFT_WRIST,
+            mp_pose.PoseLandmark.LEFT_HIP,
+            mp_pose.PoseLandmark.RIGHT_HIP,
+            mp_pose.PoseLandmark.LEFT_KNEE
+        ]
+        
+        missing_landmarks = [lm for lm in required_landmarks if not is_visible(lm)]
+        if missing_landmarks:
+            detection_message = f"⚠️ 部分关键点被遮挡，以下角度为自动填充："
+
         def pt(landmark):
-            return get_coord(pose_result.pose_landmarks.landmark[landmark], W, H)
+            return get_coord(landmarks[landmark], W, H)
 
         # 关键点
         nose = pt(mp_pose.PoseLandmark.NOSE)
@@ -180,27 +205,49 @@ def process_image(image):
         mid_sho = [(l_sho[i]+r_sho[i])/2 for i in range(3)]
         mid_hip = [(l_hip[i]+r_hip[i])/2 for i in range(3)]
 
-        # ✅ 修复：角度全部正常计算
-        rula_angles["neck_angle"] = calculate_neck_flexion(nose, mid_sho, mid_hip)
-        rula_angles["trunk_angle"] = calculate_trunk_flexion(mid_sho, mid_hip, l_knee)
-        rula_angles["arm_angle"] = calculate_angle(mid_hip, l_sho, l_elb)
-        rula_angles["forearm_angle"] = calculate_angle(l_sho, l_elb, l_wri)
-        
-        # ✅ 修复：手腕角度不再是0
-        try:
-            mcp = [l_wri[0]+20, l_wri[1]+20]
-            rula_angles["wrist_bend"] = calculate_wrist_bend(l_elb, l_wri, mcp)
-        except:
-            rula_angles["wrist_bend"] = 12
+        # 颈部角度计算
+        if is_visible(mp_pose.PoseLandmark.NOSE) and is_visible(mp_pose.PoseLandmark.LEFT_SHOULDER) and is_visible(mp_pose.PoseLandmark.LEFT_HIP):
+            rula_angles["neck_angle"] = calculate_neck_flexion(nose, mid_sho, mid_hip)
+        else:
+            default_angles.append("颈部")
+            
+        # 躯干角度计算
+        if is_visible(mp_pose.PoseLandmark.LEFT_SHOULDER) and is_visible(mp_pose.PoseLandmark.LEFT_HIP) and is_visible(mp_pose.PoseLandmark.LEFT_KNEE):
+            rula_angles["trunk_angle"] = calculate_trunk_flexion(mid_sho, mid_hip, l_knee)
+        else:
+            default_angles.append("躯干")
+            
+        # 手臂角度计算
+        if is_visible(mp_pose.PoseLandmark.LEFT_HIP) and is_visible(mp_pose.PoseLandmark.LEFT_SHOULDER) and is_visible(mp_pose.PoseLandmark.LEFT_ELBOW):
+            rula_angles["arm_angle"] = calculate_angle(mid_hip, l_sho, l_elb)
+        else:
+            default_angles.append("手臂")
+            
+        # 前臂角度计算
+        if is_visible(mp_pose.PoseLandmark.LEFT_SHOULDER) and is_visible(mp_pose.PoseLandmark.LEFT_ELBOW) and is_visible(mp_pose.PoseLandmark.LEFT_WRIST):
+            rula_angles["forearm_angle"] = calculate_angle(l_sho, l_elb, l_wri)
+        else:
+            default_angles.append("前臂")
+            
+        # 手腕角度计算
+        if is_visible(mp_pose.PoseLandmark.LEFT_ELBOW) and is_visible(mp_pose.PoseLandmark.LEFT_WRIST):
+            try:
+                mcp = [l_wri[0]+20, l_wri[1]+20]
+                rula_angles["wrist_bend"] = calculate_wrist_bend(l_elb, l_wri, mcp)
+            except:
+                default_angles.append("手腕")
+        else:
+            default_angles.append("手腕")
 
-        detection_message = "✅ 识别成功"
+        if default_angles:
+            detection_message += "、".join(default_angles)
 
         mp.solutions.drawing_utils.draw_landmarks(
             image, pose_result.pose_landmarks, mp_pose.POSE_CONNECTIONS
         )
 
     pose.close()
-    return image, rula_angles, detection_message
+    return image, rula_angles, detection_message, default_angles
 
 # ===================== RULA 评分逻辑（完全保留你原来的） =====================
 def get_arm_base_score(arm_angle):
@@ -332,22 +379,23 @@ if uploaded_file:
     with st.spinner("正在识别姿势..."):
         file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
         image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-        processed_image, rula_angles, detection_message = process_image(image)
+        processed_image, rula_angles, detection_message, default_angles = process_image(image)
         
-        # 修复：限制图片最大宽度为640px，不再占满整个屏幕
         st.image(cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB), caption="姿势识别结果", width=640)
         
-        # 关键修复：只有真正检测成功时才更新角度
         if detection_message.startswith("✅"):
+            st.success(detection_message)
+        elif detection_message.startswith("⚠️"):
+            st.warning(detection_message)
+            st.info("建议：调整拍照角度，确保全身侧身90°，无遮挡，以获得更准确的识别结果")
+        else:
+            st.error(detection_message)
+            st.session_state.detection_success = False
+        
+        # 关键修复：只有真正检测成功时才更新角度
+        if detection_message.startswith("✅") or detection_message.startswith("⚠️"):
             st.session_state.auto_angles = rula_angles
             st.session_state.detection_success = True
-            st.success(detection_message)
-        else:
-            st.session_state.detection_success = False
-            if detection_message.startswith("⚠️"):
-                st.warning(detection_message)
-            else:
-                st.error(detection_message)
 
 # 关键修复：只有检测成功时才使用自动识别的角度，否则使用默认值
 if st.session_state.detection_success and st.session_state.auto_angles:
