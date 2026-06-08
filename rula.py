@@ -543,9 +543,6 @@ if "rula_result" in st.session_state and st.session_state.rula_result is not Non
     </div>
     """, unsafe_allow_html=True)
 
-# 2. 渲染第三部分标题+历史记录（永远在最下面，逻辑处理完才渲染）
-st.markdown("<div class='section-header'>【第三部分】💡 AI分析建议及咨询</div>", unsafe_allow_html=True)
-
 if len(st.session_state.rula_history) == 0:
     st.info("暂无评估历史，填写数据后点击开始评估生成首份报告")
 else:
