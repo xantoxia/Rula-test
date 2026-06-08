@@ -412,7 +412,7 @@ def get_table3_score(c, d):
 
 def calculate_rula_scores(arm_angle, arm_abd, shoulder_up, arm_support, forearm_angle, forearm_abd,
                          wrist_bend, wrist_twist, neck_angle, neck_twist, neck_bend,
-                         trunk_angle, trunk_twist, trunk_bend, leg_support, muscle, load):
+                         trunk_angle, trunk_twist, trunk_bend, leg_support, muscle_state, load_state):
     arm_final = max(1, get_arm_base_score(arm_angle) + (1 if arm_abd else 0) + (1 if shoulder_up else 0) - (1 if arm_support else 0))
     forearm_final = max(1, get_forearm_base_score(forearm_angle) + (1 if forearm_abd else 0))
     wrist_final = get_wrist_base_score(wrist_bend)
@@ -422,42 +422,56 @@ def calculate_rula_scores(arm_angle, arm_abd, shoulder_up, arm_support, forearm_
     a = get_table1_score(arm_final, forearm_final, wrist_final, wrist_twist)
     b = get_table2_score(neck_final, trunk_final, leg_final)
 
-    # ===================== 肌肉状态 + 负荷状态 完整评分（严格匹配你提供的RULA原表）=====================
+    # ===================== 肌肉状态 + 负荷状态 完整评分（严格匹配RULA原表）=====================
     # 肌肉状态 m（0或1）
     if muscle_state in ["静态，或持物超过1分钟","重复作业超过4次/分钟"]:
         m = 1
-        muscle_text = "肌肉状态（得分为1）：存在长时间静态握持或每分钟4次以上高频重复动作，肌肉持续静态承压，疲劳劳损风险升高"
     else:
         m = 0
-        muscle_text = "肌肉状态（得分为0）：作业姿势动态切换充足，无长期僵持与高频重复，肌肉负荷水平正常"
 
     # 负荷状态 l（0/1/2/3 四档完整匹配）
-    if load_state == "没有作用力，小于2kg周期性的负荷或力量":
+    if load_state == "无作用力/小于2kg周期性的负荷或力量":
         l = 0
-        load_text = "负荷状态（得分为0）：几乎无外力负重，关节附加压力极低"
     elif load_state == "2-10kg周期性的负荷或力量":
         l = 1
-        load_text = "负荷状态（得分为1）：2–10kg周期性载荷，小幅增加关节肌肉负荷"
-    elif load_state == "2-10kg静态负荷，2-10kg重复的负荷或力量，10kg或更多周期性负荷或力量":
+    elif load_state == "2-10kg静态/重复负荷，10kg或更多周期性负荷":
         l = 2
-        load_text = "负荷状态（得分为2）：2–10kg静态持重或≥10kg周期载荷，劳损风险明显上升"
     elif load_state == "10kg静态，10kg重复的负荷或力量，振动或力量快速增加":
         l = 3
-        load_text = "负荷状态（得分为3）：≥10kg静态握持、剧烈振动或爆发力作业，属于高损伤风险载荷"
+    else:
+        l = 0
                         
     c = a + m + l
     d = b + m + l
     rula = get_table3_score(c, d)
 
-    if rula <=2: lev,plan,cls="AL1","风险程度较低，不需要处理","risk-low"
-    elif rula <=4: lev,plan,cls="AL2","进一步调查及必要时进行改善","risk-medium"
-    elif rula <=6: lev,plan,cls="AL3","近日内需进行进一步调查及改善","risk-medium"
-    else: lev,plan,cls="AL4","必须立即进行调查及改善","risk-high"
+    if rula <=2:
+        lev, plan, cls = "AL1", "风险程度较低，不需要处理", "risk-low"
+    elif rula <=4:
+        lev, plan, cls = "AL2", "进一步调查及必要时进行改善", "risk-medium"
+    elif rula <=6:
+        lev, plan, cls = "AL3", "近日内需进行进一步调查及改善", "risk-medium"
+    else:
+        lev, plan, cls = "AL4", "必须立即进行调查及改善", "risk-high"
 
-    return {"arm_final":arm_final,"forearm_final":forearm_final,"wrist_final":wrist_final,
-            "neck_final":neck_final,"trunk_final":trunk_final,"leg_final":leg_final,
-            "a_total":a,"b_total":b,"muscle_score":m,"load_score":l,"c_total":c,"d_total":d,
-            "rula_total":rula,"action_level":lev,"action_plan":plan,"risk_class":cls}
+    return {
+        "arm_final": arm_final,
+        "forearm_final": forearm_final,
+        "wrist_final": wrist_final,
+        "neck_final": neck_final,
+        "trunk_final": trunk_final,
+        "leg_final": leg_final,
+        "a_total": a,
+        "b_total": b,
+        "muscle_score": m,
+        "load_score": l,
+        "c_total": c,
+        "d_total": d,
+        "rula_total": rula,
+        "action_level": lev,
+        "action_plan": plan,
+        "risk_class": cls
+    }
 
 # ===================== AI 模块 =====================
 def call_deepseek_api(messages):
@@ -703,8 +717,8 @@ if st.session_state.need_gen_ai and "last_scores" in st.session_state and st.ses
            - 腿部评分：{scores['leg_final']}
            - B总分：{scores['b_total']}
         3. 肌肉与负荷评分：
-           - 肌肉状态：{muscle_state}，评分：{m}
-           - 负荷状态：{load_state}，评分：{l}
+           - 肌肉状态：{muscle_state}，评分：{scores['muscle_score']}
+           - 负荷状态：{load_state}，评分：{scores['load_score']}
            - C总分：{scores['c_total']}，D总分：{scores['d_total']}
         4. 最终结果：
            - RULA总分：{scores['rula_total']}
