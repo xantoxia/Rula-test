@@ -323,7 +323,7 @@ def process_image(image):
 
         # 统一提示文案
         if default_angles:
-            detection_message = f"⚠️ 部分角度识别失败，已自动填充默认值，建议手动修正：{', '.join(default_angles)}"
+            detection_message = f"⚠️ 部分角度识别失败，已自动填充默认值，建议在【第二部分】手动修正：{', '.join(default_angles)}"
 
         # 绘制姿态骨架
         mp.solutions.drawing_utils.draw_landmarks(
