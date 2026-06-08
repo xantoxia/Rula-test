@@ -591,20 +591,6 @@ else:
                             item["messages"].append({"role": "assistant", "content": full_response})
                             st.rerun()
 
-display_chat_messages()
-
-prompt = st.chat_input("继续咨询人因工程相关问题：")
-if prompt:
-    if not st.session_state.api_key_entered:
-        st.error("请先完成评估，系统会自动初始化API")
-    else:
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.spinner("思考中..."):
-            full_response = call_deepseek_api(st.session_state.messages)
-            if full_response:
-                st.session_state.messages.append({"role": "assistant", "content": full_response})
-                st.rerun()
-
 # 侧边栏说明
 with st.sidebar:
     st.markdown("### 系统说明")
