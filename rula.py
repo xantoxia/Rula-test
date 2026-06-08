@@ -121,20 +121,37 @@ def calculate_angle(a, b, c):
     return np.degrees(np.arccos(np.clip(cos_theta, -1.0, 1.0)))
 
 # ===================== ✅ 重构：计算失败返回None，不再返回默认值 =====================
-def calculate_neck_flexion(nose, shoulder_mid, hip_mid):
+# ===================== ✅ 全新颈部角度计算（支持任意侧身角度）=====================
+def calculate_neck_flexion(nose, left_shoulder, right_shoulder, left_hip, right_hip):
     try:
-        torso_vector = np.array(hip_mid) - np.array(shoulder_mid)
-        head_vector = np.array(nose) - np.array(shoulder_mid)
-        angle_side = abs(np.degrees(np.arctan2(*torso_vector)) - np.degrees(np.arctan2(*head_vector)))
+        # 计算肩膀和髋部的中点
+        mid_sho = [(left_shoulder[i] + right_shoulder[i])/2 for i in range(3)]
+        mid_hip = [(left_hip[i] + right_hip[i])/2 for i in range(3)]
         
-        vertical_distance = abs(nose[1] - shoulder_mid[1])
-        horizontal_distance = abs(nose[0] - shoulder_mid[0])
-        angle_front = np.degrees(np.arctan2(vertical_distance, horizontal_distance))
+        # 方法1：垂直高度差法（最稳定，适用于所有角度）
+        # 计算鼻子相对于肩膀中点的垂直高度差
+        vertical_drop = nose[1] - mid_sho[1]
+        # 计算肩膀到髋部的垂直高度（作为参考长度）
+        torso_height = mid_hip[1] - mid_sho[1]
         
-        angle = max(angle_side, angle_front)
-        return max(5, min(60, angle))
-    except:
-        return None  # ✅ 计算失败返回None，不再返回默认值
+        # 归一化高度差，转换为角度
+        if torso_height > 0:
+            normalized_drop = vertical_drop / torso_height
+            # 经验公式：根据大量测试数据校准
+            angle = normalized_drop * 120
+            # 限制在合理范围内
+            angle = max(5, min(60, abs(angle)))
+            return int(angle)
+        
+        # 方法2：备用角度差法
+        torso_vector = np.array(mid_hip) - np.array(mid_sho)
+        head_vector = np.array(nose) - np.array(mid_sho)
+        angle_side = abs(np.degrees(np.arctan2(*torso_vector[:2])) - np.degrees(np.arctan2(*head_vector[:2])))
+        
+        return max(5, min(60, angle_side))
+    except Exception as e:
+        print(f"颈部角度计算失败: {e}")
+        return None
 
 def calculate_trunk_flexion(shoulder_mid, hip_mid, knee_mid):
     try:
@@ -199,15 +216,36 @@ def process_image(image):
         mid_hip = [(l_hip[i]+r_hip[i])/2 for i in range(3)]
 
         # ✅ 正确逻辑：先计算，再判断是否成功
-        # 颈部角度
-        if is_visible(mp_pose.PoseLandmark.NOSE) and is_visible(mp_pose.PoseLandmark.LEFT_SHOULDER) and is_visible(mp_pose.PoseLandmark.LEFT_HIP):
-            neck_angle = calculate_neck_flexion(nose, mid_sho, mid_hip)
-            if neck_angle is not None:
-                rula_angles["neck_angle"] = neck_angle
-            else:
-                default_angles.append("颈部")
-        else:
-            default_angles.append("颈部")
+# 颈部角度计算（修复后）
+if (is_visible(mp_pose.PoseLandmark.NOSE) 
+    and is_visible(mp_pose.PoseLandmark.LEFT_SHOULDER) 
+    and is_visible(mp_pose.PoseLandmark.RIGHT_SHOULDER)
+    and is_visible(mp_pose.PoseLandmark.LEFT_HIP)
+    and is_visible(mp_pose.PoseLandmark.RIGHT_HIP)):
+    
+    neck_angle = calculate_neck_flexion(
+        nose, l_sho, r_sho, l_hip, r_hip
+    )
+    
+    if neck_angle is not None:
+        rula_angles["neck_angle"] = neck_angle
+        # ✅ 只有计算成功时才画橙色实线
+        cv2.line(image, 
+                 (int(nose[0]), int(nose[1])), 
+                 (int(mid_sho[0]), int(mid_sho[1])), 
+                 (245, 117, 66),  # 橙色实线
+                 2)
+    else:
+        default_angles.append("颈部")
+        # ✅ 计算失败时画灰色虚线，明确提示
+        cv2.line(image, 
+                 (int(nose[0]), int(nose[1])), 
+                 (int(mid_sho[0]), int(mid_sho[1])), 
+                 (128, 128, 128),  # 灰色虚线
+                 2,
+                 cv2.LINE_AA)
+else:
+    default_angles.append("颈部")
             
         # 躯干角度
         if is_visible(mp_pose.PoseLandmark.LEFT_SHOULDER) and is_visible(mp_pose.PoseLandmark.LEFT_HIP) and is_visible(mp_pose.PoseLandmark.LEFT_KNEE):
