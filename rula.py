@@ -453,11 +453,11 @@ def calculate_rula_scores(arm_angle, arm_abd, shoulder_up, arm_support, forearm_
     rula = get_table3_score(c, d)
 
     if rula <=2:
-        lev, plan, cls = "AL1", "风险程度较低，不需要处理", "risk-low"
+        lev, plan, cls = "AL1", "不需要处理", "risk-low"
     elif rula <=4:
-        lev, plan, cls = "AL2", "进一步调查及必要时进行改善", "risk-medium"
+        lev, plan, cls = "AL2", "进一步调查，必要时改善", "risk-medium"
     elif rula <=6:
-        lev, plan, cls = "AL3", "近日内需进行进一步调查及改善", "risk-medium"
+        lev, plan, cls = "AL3", "近日内进一步调查及改善", "risk-medium"
     else:
         lev, plan, cls = "AL4", "必须立即进行调查及改善", "risk-high"
 
@@ -706,7 +706,7 @@ if st.session_state.need_gen_ai and "last_scores" in st.session_state and st.ses
         你是专业人因工程专家，严格依照RULA、ISO11226标准输出分析报告。
         ⚠️ 【强制格式要求】
         1. 开头必须先输出【本次评估结果摘要】，不能有任何开场白
-        2. 每个○条目必须单独占一行，绝对不能合并
+        2. 每个○条目必须单独回车占一行，绝对不能合并
         3. 所有肢体必须同时写出【实测角度° + 分项得分】
         
         【本次评估结果摘要】
@@ -730,16 +730,16 @@ if st.session_state.need_gen_ai and "last_scores" in st.session_state and st.ses
         输出结构：
         ## 一、分部位风险分析（结合RULA标准）
         1. 上肢（手臂-前臂-手腕）：风险概括
-            ○ 手臂（XX°，评分X）：专业解读
-            ○ 前臂（XX°，评分X）：专业解读
-            ○ 手腕（XX°，评分X）：专业解读
+            ○手臂（XX°，评分X）：专业解读
+            ○前臂（XX°，评分X）：专业解读
+            ○手腕（XX°，评分X）：专业解读
         2. 躯干与颈部：整体概括
-            ○ 颈部（XX°，评分X）：解读
-            ○ 身躯（XX°，评分X）：解读
-            ○ 腿部（评分X）：解读
+            ○颈部（XX°，评分X）：解读
+            ○身躯（XX°，评分X）：解读
+            ○腿部（评分X）：解读
         3. 肌肉与负荷因素：概括
-            ○ 肌肉状态：工况名称，评分X + 说明
-            ○ 负荷状态：工况名称，评分X + 说明
+            ○ 肌肉状态（工况名称，评分X）：解读
+            ○ 负荷状态（工况名称，评分X）：解读
         
         ## 二、可落地的改善建议
         分三类：姿势调整、工位环境优化、轮岗休息方案，务实可执行。
@@ -868,8 +868,8 @@ with st.sidebar:
     #### 评分标准：
     | RULA总分 | 行动水准 | 处理方案 |
     |----------|----------|----------|
-    | 1-2 | AL1 | 姿势，不需要处理 |
-    | 3-4 | AL2 | 进一步调查及必要时进行改善 |
-    | 5-6 | AL3 | 近日内需进行进一步调查及改善 |
+    | 1-2 | AL1 | 不需要处理 |
+    | 3-4 | AL2 | 进一步调查，必要时改善 |
+    | 5-6 | AL3 | 近日内进一步调查及改善 |
     | ≥7 | AL4 | 必须立即进行调查及改善 |
     """)
