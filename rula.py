@@ -735,7 +735,7 @@ if st.session_state.need_gen_ai and "last_scores" in st.session_state and st.ses
         肌肉：{muscle_state}，得分{scores['muscle_score']}，说明：{scores['muscle_desc']}
         负荷：{load_state}，得分{scores['load_score']}，说明：{scores['load_desc']}
         
-        输出格式严格照搬样板结构：
+        输出格式严格照搬样板结构，绝对不允许修改：
         ## 一、分部位风险分析（结合RULA标准）
         1. 上肢（手臂-前臂-手腕）：风险高低概括
             ○ 手臂（XX°，评分X）：专业风险解读
@@ -751,8 +751,13 @@ if st.session_state.need_gen_ai and "last_scores" in st.session_state and st.ses
         
         ## 二、可落地的改善建议
         分三类：姿势调整、工位环境优化、轮岗休息方案，务实可执行。
-        语言专业平实，不要多余花哨格式，每一段肢体必须带上角度+分数成对展示。
-        """
+        
+        ⚠️ 【最终强制格式要求，违反则重新生成】
+        1. 每一个以○开头的条目必须**单独占一行**，绝对不允许多个○条目出现在同一行
+        2. 每个条目之间必须保留换行
+        3. 不要使用任何多余的缩进或空格
+        4. 语言专业平实，不要多余花哨格式
+        5. 每一段肢体必须带上角度+分数成对展示
         
         ai_response = call_deepseek_api([
             {"role": "system", "content": "你是专业的人因工程专家，精通RULA快速上肢评估法和ISO 11226国际标准。"},
