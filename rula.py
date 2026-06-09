@@ -852,25 +852,35 @@ else:
             
             # 该评估的独立聊天输入框（key也要改成用actual_number，避免重复）
             prompt = st.chat_input(f"针对第{actual_number}次评估继续咨询人因工程相关问题...", key=f"chat_input_{actual_number}")
+            
+            # ========== 第一步：用户发送消息，立即添加到历史并刷新 ==========
             if prompt:
                 if not st.session_state.api_key_entered:
                     st.error("请先完成评估，系统会自动初始化API")
                 else:
-                    # 添加用户消息到该评估的聊天历史
+                    # 立即添加用户消息到聊天历史
                     item["messages"].append({"role": "user", "content": prompt})
+                    # 立即刷新页面，让用户看到自己发的问题
+                    st.rerun()
+            
+            # ========== 第二步：检查是否有未回复的用户消息，如果有就自动回复 ==========
+            if item["messages"] and item["messages"][-1]["role"] == "user":
+                with st.spinner("思考中..."):
+                    # 构建上下文：系统提示 + 本次评估报告 + 历史聊天记录
+                    context_messages = [
+                        {"role": "system", "content": "你是专业的人因工程专家，精通RULA快速上肢评估法和ISO 11226国际标准。请基于上面的RULA评估报告回答用户的问题。"},
+                        {"role": "assistant", "content": item["content"]}
+                    ] + item["messages"][:-1]  # 注意：这里去掉最后一条用户消息，因为会在下面单独加
                     
-                    with st.spinner("思考中..."):
-                        # 构建上下文：系统提示 + 本次评估报告 + 历史聊天记录
-                        context_messages = [
-                            {"role": "system", "content": "你是专业的人因工程专家，精通RULA快速上肢评估法和ISO 11226国际标准。请基于上面的RULA评估报告回答用户的问题。"},
-                            {"role": "assistant", "content": item["content"]}
-                        ] + item["messages"]
-                        
-                        full_response = call_deepseek_api(context_messages)
-                        if full_response:
-                            # 添加AI回复到该评估的聊天历史
-                            item["messages"].append({"role": "assistant", "content": full_response})
-                            st.rerun()
+                    # 添加最后一条用户消息
+                    context_messages.append(item["messages"][-1])
+                    
+                    full_response = call_deepseek_api(context_messages)
+                    if full_response:
+                        # 添加AI回复到聊天历史
+                        item["messages"].append({"role": "assistant", "content": full_response})
+                        # 再次刷新页面，显示AI回复
+                        st.rerun()
 
 # 侧边栏说明
 with st.sidebar:
