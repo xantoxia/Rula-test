@@ -749,7 +749,7 @@ if st.session_state.need_gen_ai and "last_scores" in st.session_state and st.ses
             
             ○手腕（XX°，评分X）：专业解读
             
-        2. 躯干与颈部：
+        2. 躯干（颈部-身躯-腿部）：
         
             ○颈部（XX°，评分X）：专业解读
             
