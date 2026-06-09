@@ -810,7 +810,7 @@ if "rula_result" in st.session_state and st.session_state.rula_result is not Non
         st.markdown("</div>", unsafe_allow_html=True)
     
     st.markdown(f"""
-    <div style='background-color: #F8F9FA; padding: 20px; border-radius: 10px; margin: 15px 0;'>
+    <div style="background-color: #F8F9FA; padding: 20px; border-radius: 10px; margin: 15px 0;">
         <h3>行动水准：<span class='{scores['risk_class']}'>{scores['action_level']}</span></h3>
         <p>处理方案：<span class='{scores['risk_class']}'>{scores['action_plan']}</span></p>
     </div>
