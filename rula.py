@@ -234,16 +234,50 @@ def process_image(image):
             l_sho = pt(mp_pose.PoseLandmark.LEFT_SHOULDER)
             r_sho = pt(mp_pose.PoseLandmark.RIGHT_SHOULDER)
             l_elb = pt(mp_pose.PoseLandmark.LEFT_ELBOW)
+            r_elb = pt(mp_pose.PoseLandmark.RIGHT_ELBOW)
             l_wri = pt(mp_pose.PoseLandmark.LEFT_WRIST)
+            r_wri = pt(mp_pose.PoseLandmark.RIGHT_WRIST)
             l_index = pt(mp_pose.PoseLandmark.LEFT_INDEX)
+            r_index = pt(mp_pose.PoseLandmark.RIGHT_INDEX)
             l_pinky = pt(mp_pose.PoseLandmark.LEFT_PINKY)
+            r_pinky = pt(mp_pose.PoseLandmark.RIGHT_PINKY)
             l_hip = pt(mp_pose.PoseLandmark.LEFT_HIP)
             r_hip = pt(mp_pose.PoseLandmark.RIGHT_HIP)
             l_knee = pt(mp_pose.PoseLandmark.LEFT_KNEE)
             r_knee = pt(mp_pose.PoseLandmark.RIGHT_KNEE)
 
-            mid_sho = [(l_sho[i]+r_sho[i])/2 for i in range(3)]
-            mid_hip = [(l_hip[i]+r_hip[i])/2 for i in range(3)]
+            # ===================== ✅ 新增：自动选择可见度更高的一侧（核心修复）=====================
+            # 计算左右侧上肢平均可见度
+            left_arm_vis = sum([
+                landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].visibility,
+                landmarks[mp_pose.PoseLandmark.LEFT_ELBOW].visibility,
+                landmarks[mp_pose.PoseLandmark.LEFT_WRIST].visibility
+            ]) / 3
+            right_arm_vis = sum([
+                landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].visibility,
+                landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].visibility,
+                landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
+            ]) / 3
+
+            # 自动选可见度高的一侧作为计算主侧
+            if left_arm_vis >= right_arm_vis:
+                sho_main, elb_main, wri_main = l_sho, l_elb, l_wri
+                index_main, pinky_main = l_index, l_pinky
+                hip_main, knee_main = l_hip, l_knee
+            else:
+                sho_main, elb_main, wri_main = r_sho, r_elb, r_wri
+                index_main, pinky_main = r_index, r_pinky
+                hip_main, knee_main = r_hip, r_knee
+
+            # 肩、髋中点：双侧都可见用中点，否则用主侧单点（兼容侧身）
+            if is_visible(mp_pose.PoseLandmark.LEFT_SHOULDER) and is_visible(mp_pose.PoseLandmark.RIGHT_SHOULDER):
+                mid_sho = [(l_sho[i]+r_sho[i])/2 for i in range(3)]
+            else:
+                mid_sho = sho_main
+            if is_visible(mp_pose.PoseLandmark.LEFT_HIP) and is_visible(mp_pose.PoseLandmark.RIGHT_HIP):
+                mid_hip = [(l_hip[i]+r_hip[i])/2 for i in range(3)]
+            else:
+                mid_hip = hip_main
 
             # --------------------------
             # 颈部：强制成功标记逻辑
@@ -266,15 +300,13 @@ def process_image(image):
                 default_angles.append("颈部")
 
             # --------------------------
-            # 身躯：强制成功标记逻辑
+            # 身躯：强制成功标记逻辑（单侧兼容版）
             # --------------------------
             trunk_ok = False
-            if (is_visible(mp_pose.PoseLandmark.LEFT_SHOULDER) 
-                and is_visible(mp_pose.PoseLandmark.RIGHT_SHOULDER)
-                and is_visible(mp_pose.PoseLandmark.LEFT_HIP)
-                and is_visible(mp_pose.PoseLandmark.RIGHT_HIP)
-                and is_visible(mp_pose.PoseLandmark.LEFT_KNEE)
-                and is_visible(mp_pose.PoseLandmark.RIGHT_KNEE)):
+            # 不再强制双侧全可见，主侧肩+髋+膝可见即可计算
+            if (is_visible(mp_pose.PoseLandmark.LEFT_SHOULDER if left_arm_vis >= right_arm_vis else mp_pose.PoseLandmark.RIGHT_SHOULDER)
+                and is_visible(mp_pose.PoseLandmark.LEFT_HIP if left_arm_vis >= right_arm_vis else mp_pose.PoseLandmark.RIGHT_HIP)
+                and is_visible(mp_pose.PoseLandmark.LEFT_KNEE if left_arm_vis >= right_arm_vis else mp_pose.PoseLandmark.RIGHT_KNEE)):
                 
                 trunk_angle = calculate_trunk_flexion(l_sho, r_sho, l_hip, r_hip, l_knee, r_knee)
                 if trunk_angle is not None and 0 <= trunk_angle <= 85:
@@ -284,37 +316,41 @@ def process_image(image):
                 default_angles.append("身躯")
 
             # --------------------------
-            # 手臂：强制成功标记逻辑
+            # 手臂：强制成功标记逻辑（自动选侧版）
             # --------------------------
             arm_ok = False
-            if is_visible(mp_pose.PoseLandmark.LEFT_HIP) and is_visible(mp_pose.PoseLandmark.LEFT_SHOULDER) and is_visible(mp_pose.PoseLandmark.LEFT_ELBOW):
-                arm_angle = calculate_angle(mid_hip, l_sho, l_elb)
+            if is_visible(mp_pose.PoseLandmark.LEFT_HIP if left_arm_vis >= right_arm_vis else mp_pose.PoseLandmark.RIGHT_HIP) \
+                and is_visible(mp_pose.PoseLandmark.LEFT_SHOULDER if left_arm_vis >= right_arm_vis else mp_pose.PoseLandmark.RIGHT_SHOULDER) \
+                and is_visible(mp_pose.PoseLandmark.LEFT_ELBOW if left_arm_vis >= right_arm_vis else mp_pose.PoseLandmark.RIGHT_ELBOW):
+                arm_angle = calculate_angle(mid_hip, sho_main, elb_main)
                 rula_angles["arm_angle"] = arm_angle
                 arm_ok = True
             if not arm_ok:
                 default_angles.append("手臂")
 
             # --------------------------
-            # 前臂：强制成功标记逻辑
+            # 前臂：强制成功标记逻辑（自动选侧版）
             # --------------------------
             forearm_ok = False
-            if is_visible(mp_pose.PoseLandmark.LEFT_SHOULDER) and is_visible(mp_pose.PoseLandmark.LEFT_ELBOW) and is_visible(mp_pose.PoseLandmark.LEFT_WRIST):
-                forearm_angle = calculate_angle(l_sho, l_elb, l_wri)
+            if is_visible(mp_pose.PoseLandmark.LEFT_SHOULDER if left_arm_vis >= right_arm_vis else mp_pose.PoseLandmark.RIGHT_SHOULDER) \
+                and is_visible(mp_pose.PoseLandmark.LEFT_ELBOW if left_arm_vis >= right_arm_vis else mp_pose.PoseLandmark.RIGHT_ELBOW) \
+                and is_visible(mp_pose.PoseLandmark.LEFT_WRIST if left_arm_vis >= right_arm_vis else mp_pose.PoseLandmark.RIGHT_WRIST):
+                forearm_angle = calculate_angle(sho_main, elb_main, wri_main)
                 rula_angles["forearm_angle"] = forearm_angle
                 forearm_ok = True
             if not forearm_ok:
                 default_angles.append("前臂")
-
+                
             # --------------------------
-            # 手腕：强制成功标记逻辑
+            # 手腕：强制成功标记逻辑（自动选侧版）
             # --------------------------
             wrist_ok = False
-            if (is_visible(mp_pose.PoseLandmark.LEFT_ELBOW) 
-                and is_visible(mp_pose.PoseLandmark.LEFT_WRIST)
-                and is_visible(mp_pose.PoseLandmark.LEFT_INDEX)
-                and is_visible(mp_pose.PoseLandmark.LEFT_PINKY)):
+            if (is_visible(mp_pose.PoseLandmark.LEFT_ELBOW if left_arm_vis >= right_arm_vis else mp_pose.PoseLandmark.RIGHT_ELBOW) 
+                and is_visible(mp_pose.PoseLandmark.LEFT_WRIST if left_arm_vis >= right_arm_vis else mp_pose.PoseLandmark.RIGHT_WRIST)
+                and is_visible(mp_pose.PoseLandmark.LEFT_INDEX if left_arm_vis >= right_arm_vis else mp_pose.PoseLandmark.RIGHT_INDEX)
+                and is_visible(mp_pose.PoseLandmark.LEFT_PINKY if left_arm_vis >= right_arm_vis else mp_pose.PoseLandmark.RIGHT_PINKY)):
                 
-                wrist_angle = calculate_wrist_bend(l_elb, l_wri, l_index, l_pinky)
+                wrist_angle = calculate_wrist_bend(elb_main, wri_main, index_main, pinky_main)
                 if wrist_angle is not None:
                     rula_angles["wrist_bend"] = wrist_angle
                     wrist_ok = True
